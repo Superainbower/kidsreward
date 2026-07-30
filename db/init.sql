@@ -11,15 +11,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 -- -------------------------------------------------------------
 -- 1. Family — 家庭
 -- -------------------------------------------------------------
-DROP TABLE IF EXISTS `Redemption`;
-DROP TABLE IF EXISTS `PointsTransaction`;
-DROP TABLE IF EXISTS `Reward`;
-DROP TABLE IF EXISTS `Task`;
-DROP TABLE IF EXISTS `TaskTemplate`;
-DROP TABLE IF EXISTS `User`;
-DROP TABLE IF EXISTS `Family`;
-
-CREATE TABLE `Family` (
+CREATE TABLE IF NOT EXISTS `Family` (
     `id`        VARCHAR(191) NOT NULL,
     `name`      VARCHAR(191) NOT NULL,
     `createdAt` DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
@@ -29,7 +21,7 @@ CREATE TABLE `Family` (
 -- -------------------------------------------------------------
 -- 2. User — 用户（家长 / 小朋友）
 -- -------------------------------------------------------------
-CREATE TABLE `User` (
+CREATE TABLE IF NOT EXISTS `User` (
     `id`           VARCHAR(191) NOT NULL,
     `familyId`     VARCHAR(191) NOT NULL,
     `name`         VARCHAR(191) NOT NULL,
@@ -52,7 +44,7 @@ CREATE TABLE `User` (
 -- -------------------------------------------------------------
 -- 3. TaskTemplate — 任务模板
 -- -------------------------------------------------------------
-CREATE TABLE `TaskTemplate` (
+CREATE TABLE IF NOT EXISTS `TaskTemplate` (
     `id`          VARCHAR(191) NOT NULL,
     `familyId`    VARCHAR(191) NOT NULL,
     `title`       VARCHAR(191) NOT NULL,
@@ -71,7 +63,7 @@ CREATE TABLE `TaskTemplate` (
 -- -------------------------------------------------------------
 -- 4. Task — 具体任务实例
 -- -------------------------------------------------------------
-CREATE TABLE `Task` (
+CREATE TABLE IF NOT EXISTS `Task` (
     `id`          VARCHAR(191) NOT NULL,
     `familyId`    VARCHAR(191) NOT NULL,
     `templateId`  VARCHAR(191) NULL     DEFAULT NULL,
@@ -100,7 +92,7 @@ CREATE TABLE `Task` (
 -- -------------------------------------------------------------
 -- 5. PointsTransaction — 积分变动记录
 -- -------------------------------------------------------------
-CREATE TABLE `PointsTransaction` (
+CREATE TABLE IF NOT EXISTS `PointsTransaction` (
     `id`          VARCHAR(191) NOT NULL,
     `familyId`    VARCHAR(191) NOT NULL,
     `userId`      VARCHAR(191) NOT NULL,
@@ -119,7 +111,7 @@ CREATE TABLE `PointsTransaction` (
 -- -------------------------------------------------------------
 -- 6. Reward — 奖品
 -- -------------------------------------------------------------
-CREATE TABLE `Reward` (
+CREATE TABLE IF NOT EXISTS `Reward` (
     `id`          VARCHAR(191) NOT NULL,
     `familyId`    VARCHAR(191) NOT NULL,
     `title`       VARCHAR(191) NOT NULL,
@@ -137,7 +129,7 @@ CREATE TABLE `Reward` (
 -- -------------------------------------------------------------
 -- 7. Redemption — 兑换记录
 -- -------------------------------------------------------------
-CREATE TABLE `Redemption` (
+CREATE TABLE IF NOT EXISTS `Redemption` (
     `id`          VARCHAR(191) NOT NULL,
     `familyId`    VARCHAR(191) NOT NULL,
     `childId`     VARCHAR(191) NOT NULL,
