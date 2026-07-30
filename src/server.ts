@@ -1,6 +1,11 @@
 import { buildApp } from "./app.js"
 
 async function main() {
+  if (!process.env.JWT_SECRET) {
+    console.error("JWT_SECRET is required")
+    process.exit(1)
+  }
+
   const app = await buildApp()
 
   // 健康检查

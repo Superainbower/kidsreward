@@ -98,7 +98,8 @@ export async function authRoutes(app: FastifyInstance) {
     }
 
     const passwordHash = await bcrypt.hash(password, 12)
-    const pinHash = await bcrypt.hash("1234", 10)
+    const pinCode = String(Math.floor(100000 + Math.random() * 900000))
+    const pinHash = await bcrypt.hash(pinCode, 10)
     const familyId = genId()
     const userId = genId()
     const now = new Date()
@@ -144,7 +145,7 @@ export async function authRoutes(app: FastifyInstance) {
     }
 
     const token = signToken(app, { sub: userId, familyId, role: "parent" })
-    return { user: { id: userId, name, role: "parent", familyId }, token }
+    return { user: { id: userId, name, role: "parent", familyId }, token, pinCode }
   })
 
   // POST /api/auth/verify-pin

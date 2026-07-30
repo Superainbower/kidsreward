@@ -1,6 +1,7 @@
 import Fastify from "fastify"
 import fjwt from "@fastify/jwt"
 import cors from "@fastify/cors"
+import rateLimit from "@fastify/rate-limit"
 import { authRoutes } from "./routes/auth"
 
 export async function buildApp() {
@@ -8,8 +9,10 @@ export async function buildApp() {
 
   await app.register(cors, { origin: true })
 
+  await app.register(rateLimit, { max: 30, timeWindow: "1 minute" })
+
   await app.register(fjwt, {
-    secret: process.env.JWT_SECRET || "dev-secret-change-me",
+    secret: process.env.JWT_SECRET!,
   })
 
   app.decorate("authenticate", async (request: any, reply: any) => {
