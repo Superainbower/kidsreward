@@ -1,6 +1,7 @@
 import Fastify from "fastify"
 import fjwt from "@fastify/jwt"
 import cors from "@fastify/cors"
+import { authRoutes } from "./routes/auth"
 
 export async function buildApp() {
   const app = Fastify({ logger: true })
@@ -19,7 +20,7 @@ export async function buildApp() {
     }
   })
 
-  // Routes will be registered here in later tasks
+  await app.register(authRoutes)
 
   return app
 }
