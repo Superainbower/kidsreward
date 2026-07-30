@@ -15,7 +15,7 @@ export async function buildApp() {
 
   await app.register(cors, { origin: true })
 
-  await app.register(rateLimit, { max: 30, timeWindow: "1 minute" })
+  await app.register(rateLimit, { max: 120, timeWindow: "1 minute" })
 
   await app.register(fjwt, {
     secret: process.env.JWT_SECRET!,

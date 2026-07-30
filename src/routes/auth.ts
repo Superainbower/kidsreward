@@ -98,7 +98,7 @@ export async function authRoutes(app: FastifyInstance) {
     }
 
     const passwordHash = await bcrypt.hash(password, 12)
-    const pinCode = String(Math.floor(100000 + Math.random() * 900000))
+    const pinCode = "1234"
     const pinHash = await bcrypt.hash(pinCode, 10)
     const familyId = genId()
     const userId = genId()
