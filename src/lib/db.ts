@@ -41,3 +41,14 @@ export async function execute(sql: string, params?: unknown[]) {
 export function pool() {
   return getPool()
 }
+
+// 轻量幂等迁移：老库自动补齐 Reward.icon，避免手动执行 SQL
+export async function ensureSchema() {
+  const cols = await query<{ COLUMN_NAME: string }>(
+    `SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Reward' AND COLUMN_NAME = 'icon'`
+  )
+  if (cols.length > 0) return
+  await execute(
+    `ALTER TABLE \`Reward\` ADD COLUMN \`icon\` VARCHAR(191) NOT NULL DEFAULT '🎁' AFTER \`title\``
+  )
+}

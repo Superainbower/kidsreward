@@ -115,6 +115,7 @@ CREATE TABLE IF NOT EXISTS `Reward` (
     `id`          VARCHAR(191) NOT NULL,
     `familyId`    VARCHAR(191) NOT NULL,
     `title`       VARCHAR(191) NOT NULL,
+    `icon`        VARCHAR(191) NOT NULL DEFAULT '🎁',
     `description` VARCHAR(191) NULL     DEFAULT NULL,
     `pointsCost`  INTEGER      NOT NULL,
     `imageUrl`    VARCHAR(191) NULL     DEFAULT NULL,
@@ -148,3 +149,10 @@ CREATE TABLE IF NOT EXISTS `Redemption` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;
+
+-- -------------------------------------------------------------
+-- 默认登录账号（家长）：15055120000 / 000000，管理 PIN：1234
+-- -------------------------------------------------------------
+INSERT INTO `Family` (`id`, `name`, `createdAt`) VALUES ('family_default', '默认家庭', NOW(3));
+INSERT INTO `User` (`id`, `familyId`, `name`, `phone`, `passwordHash`, `pinCode`, `role`, `createdAt`, `updatedAt`)
+VALUES ('user_default_parent', 'family_default', '默认家长', '15055120000', '$2b$10$tx1Zi.kUeC6QHC2eYu98fe3/uGnFbr/r4Jaz3E02/X/2zMnBFARE6', '$2b$10$McLtfw0xc6CF6hBBvhoupOrkYyRxZUhGl7EKi8OJShKdb0H3LnpQW', 'parent', NOW(3), NOW(3));

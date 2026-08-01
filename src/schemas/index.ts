@@ -48,6 +48,7 @@ export const createRewardSchema = z.object({
   description: z.string().optional(),
   pointsCost: z.number().int().min(1),
   imageUrl: z.string().optional(),
+  icon: z.string().optional(),
 })
 export const updateRewardSchema = createRewardSchema.extend({
   isActive: z.boolean().optional(),

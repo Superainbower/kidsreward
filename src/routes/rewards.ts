@@ -18,12 +18,12 @@ export async function rewardRoutes(app: FastifyInstance) {
     try { await req.jwtVerify() } catch { return reply.status(401).send({ error: "未登录" }) }
     if (req.user.role !== "parent") return reply.status(403).send({ error: "权限不足" })
 
-    const { title, description, pointsCost, imageUrl } = createRewardSchema.parse(req.body)
+    const { title, description, pointsCost, imageUrl, icon } = createRewardSchema.parse(req.body)
     const id = genId()
     const now = new Date()
     await execute(
-      `INSERT INTO Reward (id, familyId, title, description, pointsCost, imageUrl, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [id, req.user.familyId, title, description ?? null, pointsCost, imageUrl ?? null, now]
+      `INSERT INTO Reward (id, familyId, title, icon, description, pointsCost, imageUrl, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, req.user.familyId, title, icon ?? '🎁', description ?? null, pointsCost, imageUrl ?? null, now]
     )
     const rows = await query(`SELECT * FROM Reward WHERE id = ?`, [id])
     return reply.send(rows[0])
@@ -34,11 +34,16 @@ export async function rewardRoutes(app: FastifyInstance) {
     if (req.user.role !== "parent") return reply.status(403).send({ error: "权限不足" })
 
     const { id } = req.params
-    const { title, description, pointsCost, imageUrl, isActive } = updateRewardSchema.parse(req.body)
+    const { title, description, pointsCost, imageUrl, isActive, icon } = updateRewardSchema.parse(req.body)
     const now = new Date()
+    const existing = await query<{ icon: string }>(
+      `SELECT icon FROM Reward WHERE id = ? AND familyId = ?`,
+      [id, req.user.familyId]
+    )
+    const finalIcon = icon ?? existing[0]?.icon ?? '🎁'
     await execute(
-      `UPDATE Reward SET title = ?, description = ?, pointsCost = ?, imageUrl = ?, isActive = ?, updatedAt = ? WHERE id = ? AND familyId = ?`,
-      [title, description, pointsCost, imageUrl, isActive, now, id, req.user.familyId]
+      `UPDATE Reward SET title = ?, icon = ?, description = ?, pointsCost = ?, imageUrl = ?, isActive = ?, updatedAt = ? WHERE id = ? AND familyId = ?`,
+      [title, finalIcon, description, pointsCost, imageUrl, isActive, now, id, req.user.familyId]
     )
     const rows = await query(`SELECT * FROM Reward WHERE id = ?`, [id])
     return reply.send(rows[0])

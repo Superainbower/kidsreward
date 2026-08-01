@@ -130,17 +130,17 @@ export async function authRoutes(app: FastifyInstance) {
 
     // Default rewards
     const defaultRewards = [
-      { title: "看动画片 30 分钟", pointsCost: 10, description: "可以看喜欢的动画片" },
-      { title: "冰淇淋一个", pointsCost: 20, description: "周末去便利店挑一个冰淇淋" },
-      { title: "游戏 1 小时", pointsCost: 30, description: "周末可以玩游戏" },
-      { title: "新玩具", pointsCost: 100, description: "去玩具店挑一个喜欢的玩具" },
-      { title: "去游乐园", pointsCost: 200, description: "周末去游乐园玩一天" },
-      { title: "选一部电影", pointsCost: 15, description: "选一部喜欢的电影全家一起看" },
+      { title: "看动画片 30 分钟", pointsCost: 10, description: "可以看喜欢的动画片", icon: "📺" },
+      { title: "冰淇淋一个", pointsCost: 20, description: "周末去便利店挑一个冰淇淋", icon: "🍦" },
+      { title: "游戏 1 小时", pointsCost: 30, description: "周末可以玩游戏", icon: "🎮" },
+      { title: "新玩具", pointsCost: 100, description: "去玩具店挑一个喜欢的玩具", icon: "🧸" },
+      { title: "去游乐园", pointsCost: 200, description: "周末去游乐园玩一天", icon: "🎡" },
+      { title: "选一部电影", pointsCost: 15, description: "选一部喜欢的电影全家一起看", icon: "🎬" },
     ]
     for (const r of defaultRewards) {
       await execute(
-        `INSERT INTO Reward (id, familyId, title, description, pointsCost, updatedAt) VALUES (?, ?, ?, ?, ?, ?)`,
-        [genId(), familyId, r.title, r.description, r.pointsCost, now]
+        `INSERT INTO Reward (id, familyId, title, icon, description, pointsCost, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [genId(), familyId, r.title, r.icon, r.description, r.pointsCost, now]
       )
     }
 

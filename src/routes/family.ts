@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify"
 import bcrypt from "bcryptjs"
-import { query, execute } from "../lib/db"
+import { query, execute, pool } from "../lib/db"
 import { genId } from "../lib/id"
 import { computeAgeGroup } from "../lib/age-group"
 import { updateFamilySchema, createChildSchema, updateChildSchema, setPinSchema } from "../schemas/index"
@@ -65,5 +65,33 @@ export async function familyRoutes(app: FastifyInstance) {
     )
     const rows = await query(`SELECT * FROM User WHERE id = ?`, [id])
     return reply.send(rows[0])
+  })
+
+  app.delete("/api/family/children/:id", async (req: any, reply) => {
+    try { await req.jwtVerify() } catch { return reply.status(401).send({ error: "未登录" }) }
+    if (req.user.role !== "parent") return reply.status(403).send({ error: "权限不足" })
+
+    const { id } = req.params
+    const childRows = await query<{ id: string }>(
+      `SELECT id FROM User WHERE id = ? AND familyId = ? AND role = 'child' LIMIT 1`,
+      [id, req.user.familyId]
+    )
+    if (!childRows[0]) return reply.status(404).send({ error: "小朋友不存在" })
+
+    const conn = await pool().getConnection()
+    try {
+      await conn.beginTransaction()
+      await conn.execute(`DELETE FROM Redemption WHERE childId = ?`, [id])
+      await conn.execute(`DELETE FROM PointsTransaction WHERE userId = ?`, [id])
+      await conn.execute(`DELETE FROM Task WHERE assignedTo = ?`, [id])
+      await conn.execute(`DELETE FROM User WHERE id = ?`, [id])
+      await conn.commit()
+    } catch (e) {
+      await conn.rollback()
+      throw e
+    } finally {
+      conn.release()
+    }
+    return reply.send({ success: true })
   })
 }
