@@ -16,6 +16,10 @@ export const registerSchema = z.object({
   phone: z.string().min(1),
   password: z.string().min(6),
 })
+export const changePasswordSchema = z.object({
+  oldPassword: z.string().min(1, "请输入当前密码"),
+  newPassword: z.string().min(6, "新密码至少6位"),
+})
 export const verifyPinSchema = z.object({ pin: z.string().min(1) })
 export const selectChildSchema = z.object({ childId: z.string().min(1) })
 

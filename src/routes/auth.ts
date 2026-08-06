@@ -5,7 +5,7 @@ import { genId } from "../lib/id"
 import { signToken, wxCode2Session } from "../lib/auth"
 import {
   wechatLoginSchema, bindPhoneSchema, phoneLoginSchema,
-  registerSchema, verifyPinSchema, selectChildSchema,
+  registerSchema, changePasswordSchema, verifyPinSchema, selectChildSchema,
 } from "../schemas/index"
 
 export async function authRoutes(app: FastifyInstance) {
@@ -165,6 +165,27 @@ export async function authRoutes(app: FastifyInstance) {
 
     const token = signToken(app, { ...req.user, viewMode: "parent" })
     return { success: true, token }
+  })
+
+  // PUT /api/auth/password
+  app.put("/api/auth/password", async (req: any, reply) => {
+    try { await req.jwtVerify() } catch { return reply.status(401).send({ error: "未登录" }) }
+    const { oldPassword, newPassword } = changePasswordSchema.parse(req.body)
+
+    const rows = await query<{ passwordHash: string | null }>(
+      `SELECT passwordHash FROM User WHERE id = ? LIMIT 1`,
+      [req.user.sub]
+    )
+    const user = rows[0]
+    if (!user) return reply.status(404).send({ error: "用户不存在" })
+    if (!user.passwordHash) return reply.status(400).send({ error: "该账号未设置密码" })
+
+    const valid = await bcrypt.compare(oldPassword, user.passwordHash)
+    if (!valid) return reply.status(401).send({ error: "当前密码错误" })
+
+    const passwordHash = await bcrypt.hash(newPassword, 12)
+    await execute(`UPDATE User SET passwordHash = ?, updatedAt = ? WHERE id = ?`, [passwordHash, new Date(), req.user.sub])
+    return { success: true }
   })
 
   // GET /api/auth/select-child
