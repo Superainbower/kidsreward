@@ -34,11 +34,18 @@ export async function templateRoutes(app: FastifyInstance) {
     if (req.user.role !== "parent") return reply.status(403).send({ error: "权限不足" })
 
     const { id } = req.params
-    const { title, description, points, category, icon, isActive } = updateTemplateSchema.parse(req.body)
+    let parsed
+    try {
+      parsed = updateTemplateSchema.parse(req.body)
+    } catch (e: any) {
+      const msg = e?.issues?.[0]?.message || "参数错误"
+      return reply.status(400).send({ error: msg })
+    }
+    const { title, description, points, category, icon, isActive, eggEnabled, eggRewards } = parsed
     const now = new Date()
     await execute(
-      `UPDATE TaskTemplate SET title = ?, description = ?, points = ?, category = ?, icon = ?, isActive = ?, updatedAt = ? WHERE id = ? AND familyId = ?`,
-      [title, description, points, category, icon, isActive, now, id, req.user.familyId]
+      `UPDATE TaskTemplate SET title = ?, description = ?, points = ?, category = ?, icon = ?, isActive = ?, eggEnabled = ?, eggRewards = ?, updatedAt = ? WHERE id = ? AND familyId = ?`,
+      [title, description, points, category, icon, isActive, eggEnabled ?? false, eggRewards ? JSON.stringify(eggRewards) : null, now, id, req.user.familyId]
     )
     const rows = await query(`SELECT * FROM TaskTemplate WHERE id = ?`, [id])
     return reply.send(rows[0])

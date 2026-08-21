@@ -91,12 +91,50 @@ export async function taskRoutes(app: FastifyInstance) {
     return reply.send(updated[0])
   })
 
+  app.post("/api/tasks/:id/reveal-egg", async (req: any, reply) => {
+    try { await req.jwtVerify() } catch { return reply.status(401).send({ error: "未登录" }) }
+    const { id } = req.params
+
+    const rows = await query<{ id: string; familyId: string; status: string; templateId: string | null }>(
+      `SELECT * FROM Task WHERE id = ?`, [id]
+    )
+    const task = rows[0]
+    if (!task || task.familyId !== req.user.familyId) return reply.status(404).send({ error: "任务不存在" })
+    if (task.status !== "pending") return reply.status(400).send({ error: "任务已提交" })
+    if (!task.templateId) return reply.status(400).send({ error: "该任务未设置彩蛋" })
+
+    const tplRows = await query<{ eggEnabled: number | boolean; eggRewards: string | null }>(
+      `SELECT eggEnabled, eggRewards FROM TaskTemplate WHERE id = ? AND familyId = ?`, [task.templateId, req.user.familyId]
+    )
+    const tpl = tplRows[0]
+    if (!tpl || !tpl.eggEnabled) return reply.status(400).send({ error: "该任务未设置彩蛋" })
+
+    let rewards: { type: string; title: string; points?: number; weight?: number }[] = []
+    try { rewards = JSON.parse(tpl.eggRewards || "[]") } catch { rewards = [] }
+    if (!rewards.length) return reply.status(400).send({ error: "彩蛋奖励为空" })
+
+    const totalWeight = rewards.reduce((sum, r) => sum + (r.weight || 1), 0)
+    let rand = Math.random() * totalWeight
+    let picked = rewards[0]
+    for (const r of rewards) {
+      rand -= r.weight || 1
+      if (rand < 0) { picked = r; break }
+    }
+
+    const now = new Date()
+    await execute(
+      `UPDATE Task SET eggRewardType = ?, eggRewardValue = ?, eggRevealedAt = ?, updatedAt = ? WHERE id = ?`,
+      [picked.type, JSON.stringify({ title: picked.title, points: picked.points ?? 0 }), now, now, id]
+    )
+    return reply.send({ reward: picked })
+  })
+
   app.post("/api/tasks/:id/approve", async (req: any, reply) => {
     try { await req.jwtVerify() } catch { return reply.status(401).send({ error: "未登录" }) }
     if (req.user.role !== "parent") return reply.status(403).send({ error: "权限不足" })
 
     const { id } = req.params
-    const rows = await query<{ id: string; familyId: string; assignedTo: string; points: number; title: string; status: string }>(
+    const rows = await query<any>(
       `SELECT * FROM Task WHERE id = ?`, [id]
     )
     const task = rows[0]
@@ -112,6 +150,16 @@ export async function taskRoutes(app: FastifyInstance) {
         `INSERT INTO PointsTransaction (id, familyId, userId, amount, type, reason, referenceId, createdAt) VALUES (?, ?, ?, ?, 'task_reward', ?, ?, ?)`,
         [genId("pts"), task.familyId, task.assignedTo, task.points, `完成任务: ${task.title}`, task.id, now]
       )
+      if (task.eggRewardType === "points") {
+        let eggPoints = 0
+        try { eggPoints = JSON.parse(task.eggRewardValue || "{}").points || 0 } catch { eggPoints = 0 }
+        if (eggPoints > 0) {
+          await conn.execute(
+            `INSERT INTO PointsTransaction (id, familyId, userId, amount, type, reason, referenceId, createdAt) VALUES (?, ?, ?, ?, 'egg_reward', ?, ?, ?)`,
+            [genId("pts"), task.familyId, task.assignedTo, eggPoints, `彩蛋奖励: ${task.title}`, task.id, now]
+          )
+        }
+      }
       await conn.commit()
       const updated = await query(`SELECT * FROM Task WHERE id = ?`, [id])
       return reply.send(updated[0])

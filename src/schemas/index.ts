@@ -42,8 +42,34 @@ export const createTemplateSchema = z.object({
   category: z.string().optional(),
   icon: z.string().optional(),
 })
+export const eggRewardSchema = z.object({
+  type: z.enum(["points", "reward"]),
+  title: z.string().min(1, "彩蛋奖励名称不能为空"),
+  points: z.number().int().positive().optional(),
+  weight: z.number().positive().default(0),
+})
 export const updateTemplateSchema = createTemplateSchema.extend({
   isActive: z.boolean().optional(),
+  eggEnabled: z.boolean().optional(),
+  eggRewards: z.array(eggRewardSchema).optional(),
+}).superRefine((data, ctx) => {
+  if (!data.eggEnabled || !data.eggRewards) return
+  if (data.eggRewards.length === 0) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["eggRewards"], message: "开启彩蛋后至少需要一个彩蛋奖励" })
+    return
+  }
+  data.eggRewards.forEach((r, i) => {
+    if (r.weight <= 0 || r.weight > 1) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["eggRewards", i, "weight"], message: "单个权重需大于 0 且不超过 1" })
+    }
+    if (r.type === "points" && (!r.points || r.points <= 0)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["eggRewards", i, "points"], message: "积分类彩蛋奖励需要填写大于 0 的积分" })
+    }
+  })
+  const totalWeight = data.eggRewards.reduce((sum, r) => sum + r.weight, 0)
+  if (Math.abs(totalWeight - 1) > 0.0001) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["eggRewards"], message: "所有彩蛋奖励权重之和需为 1" })
+  }
 })
 
 // Rewards
