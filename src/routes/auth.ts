@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs"
 import { query, execute } from "../lib/db"
 import { genId } from "../lib/id"
 import { signToken, wxCode2Session } from "../lib/auth"
+import { seedDefaultRoutine } from "../lib/default-routine-template"
 import {
   wechatLoginSchema, bindPhoneSchema, phoneLoginSchema,
   registerSchema, changePasswordSchema, verifyPinSchema, selectChildSchema,
@@ -64,6 +65,7 @@ export async function authRoutes(app: FastifyInstance) {
       `INSERT INTO User (id, familyId, name, wxOpenid, role, updatedAt) VALUES (?, ?, ?, ?, 'child', ?)`,
       [id, familyId, "小朋友", openid, now]
     )
+    await seedDefaultRoutine(familyId)
 
     const token = signToken(app, { sub: id, familyId, role: "child" })
     return { user: { id, name: "小朋友", role: "child", familyId }, token }
@@ -109,6 +111,7 @@ export async function authRoutes(app: FastifyInstance) {
       `INSERT INTO User (id, familyId, name, phone, passwordHash, pinCode, role, updatedAt) VALUES (?, ?, ?, ?, ?, ?, 'parent', ?)`,
       [userId, familyId, name, phone, passwordHash, pinHash, now]
     )
+    await seedDefaultRoutine(familyId)
 
     // Default task templates
     const defaultTemplates = [

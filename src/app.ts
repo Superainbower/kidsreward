@@ -9,6 +9,7 @@ import { rewardRoutes } from "./routes/rewards"
 import { redemptionRoutes } from "./routes/redemptions"
 import { pointsRoutes } from "./routes/points"
 import { familyRoutes } from "./routes/family"
+import { routineRoutes } from "./routes/routine"
 
 export async function buildApp() {
   const app = Fastify({ logger: true })
@@ -36,6 +37,7 @@ export async function buildApp() {
   await app.register(redemptionRoutes)
   await app.register(pointsRoutes)
   await app.register(familyRoutes)
+  await app.register(routineRoutes)
 
   return app
 }

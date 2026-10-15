@@ -112,3 +112,27 @@ export const updateFamilySchema = z.object({ name: z.string().min(1) })
 export const setPinSchema = z.object({
   pinCode: z.string().min(4, "PIN 码至少4位"),
 })
+
+// Routine templates (daily task templates)
+export const routineTemplateSchema = z.object({ name: z.string().min(1, "模板名称不能为空") })
+export const routineCategorySchema = z.object({ name: z.string().min(1, "大类名称不能为空") })
+export const routineSubtaskCreateSchema = z.object({
+  name: z.string().min(1, "子任务名称不能为空"),
+  points: z.number().int().min(0).default(1),
+  quantity: z.number().int().min(1).default(1),
+  choiceGroup: z.string().nullable().optional(),
+})
+export const routineSubtaskUpdateSchema = z.object({
+  name: z.string().min(1).optional(),
+  points: z.number().int().min(0).optional(),
+  quantity: z.number().int().min(1).optional(),
+  choiceGroup: z.string().nullable().optional(),
+})
+export const routineAssignSchema = z.object({
+  childId: z.string().min(1),
+  templateId: z.string().min(1),
+})
+export const routineCompleteSchema = z.object({
+  childId: z.string().min(1).optional(),
+  subtaskId: z.string().min(1),
+})

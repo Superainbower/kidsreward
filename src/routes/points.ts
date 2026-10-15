@@ -2,11 +2,13 @@ import type { FastifyInstance } from "fastify"
 import { query, execute } from "../lib/db"
 import { genId } from "../lib/id"
 import { adjustPointsSchema } from "../schemas/index"
+import { settleDueDays } from "../lib/routine"
 
 export async function pointsRoutes(app: FastifyInstance) {
 
   app.get("/api/points", async (req: any, reply) => {
     try { await req.jwtVerify() } catch { return reply.status(401).send({ error: "未登录" }) }
+    await settleDueDays(req.user.familyId)
 
     const { childId } = req.query as Record<string, string>
     const selectedChildId = childId || req.headers["x-selected-child-id"]
