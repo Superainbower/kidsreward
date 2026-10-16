@@ -174,6 +174,7 @@ CREATE TABLE IF NOT EXISTS `TemplateSubtask` (
     `name`        VARCHAR(191) NOT NULL,
     `points`      INTEGER      NOT NULL DEFAULT 1,
     `quantity`    INTEGER      NOT NULL DEFAULT 1,
+    `period`      VARCHAR(191) NOT NULL DEFAULT 'daily',
     `choiceGroup` VARCHAR(191) NULL DEFAULT NULL,
     `sortOrder`   INTEGER      NOT NULL DEFAULT 0,
     `createdAt`   DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
@@ -213,14 +214,16 @@ CREATE TABLE IF NOT EXISTS `RoutineSettlement` (
     `id`           VARCHAR(191) NOT NULL,
     `familyId`     VARCHAR(191) NOT NULL,
     `childId`      VARCHAR(191) NOT NULL,
+    `subtaskId`    VARCHAR(191) NULL,
     `settledDate`  DATE         NOT NULL,
     `points`       INTEGER      NOT NULL DEFAULT 0,
     `createdAt`    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     PRIMARY KEY (`id`),
-    UNIQUE KEY `RoutineSettlement_unique_idx` (`childId`, `settledDate`),
+    UNIQUE KEY `RoutineSettlement_unique2_idx` (`childId`, `subtaskId`, `settledDate`),
     KEY `RoutineSettlement_family_date_idx` (`familyId`, `settledDate`),
     CONSTRAINT `RoutineSettlement_familyId_fkey` FOREIGN KEY (`familyId`) REFERENCES `Family` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT `RoutineSettlement_childId_fkey` FOREIGN KEY (`childId`) REFERENCES `User` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+    CONSTRAINT `RoutineSettlement_childId_fkey` FOREIGN KEY (`childId`) REFERENCES `User` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT `RoutineSettlement_subtaskId_fkey` FOREIGN KEY (`subtaskId`) REFERENCES `TemplateSubtask` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;

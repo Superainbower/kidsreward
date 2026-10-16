@@ -120,12 +120,14 @@ export const routineSubtaskCreateSchema = z.object({
   name: z.string().min(1, "子任务名称不能为空"),
   points: z.number().int().min(0).default(1),
   quantity: z.number().int().min(1).default(1),
+  period: z.enum(["daily", "weekly", "monthly"]).default("daily"),
   choiceGroup: z.string().nullable().optional(),
 })
 export const routineSubtaskUpdateSchema = z.object({
   name: z.string().min(1).optional(),
   points: z.number().int().min(0).optional(),
   quantity: z.number().int().min(1).optional(),
+  period: z.enum(["daily", "weekly", "monthly"]).optional(),
   choiceGroup: z.string().nullable().optional(),
 })
 export const routineAssignSchema = z.object({

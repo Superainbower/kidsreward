@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify"
 import { query, execute } from "../lib/db"
 import { genId } from "../lib/id"
-import { todayStr, settleDueDays } from "../lib/routine"
+import { todayStr, settleDueDays, periodStartStr } from "../lib/routine"
 import {
   routineTemplateSchema, routineCategorySchema, routineSubtaskCreateSchema,
   routineSubtaskUpdateSchema, routineAssignSchema, routineCompleteSchema,
@@ -11,7 +11,7 @@ interface TemplateRow { id: string; title: string }
 interface CategoryRow { id: string; templateId: string; name: string; sortOrder: number }
 interface SubtaskRow {
   id: string; categoryId: string; name: string; points: number
-  quantity: number; choiceGroup: string | null; sortOrder: number
+  quantity: number; period: string; choiceGroup: string | null; sortOrder: number
 }
 
 async function loadTemplates(familyId: string, templateId?: string) {
@@ -34,7 +34,7 @@ async function loadTemplates(familyId: string, templateId?: string) {
   const catIds = categories.map(c => c.id)
   const subtasks = catIds.length
     ? await query<SubtaskRow>(
-        `SELECT id, categoryId, name, points, quantity, choiceGroup, sortOrder FROM TemplateSubtask WHERE categoryId IN (${catIds.map(() => "?").join(",")}) ORDER BY sortOrder ASC, createdAt ASC`,
+        `SELECT id, categoryId, name, points, quantity, period, choiceGroup, sortOrder FROM TemplateSubtask WHERE categoryId IN (${catIds.map(() => "?").join(",")}) ORDER BY sortOrder ASC, createdAt ASC`,
         catIds
       )
     : []
@@ -51,7 +51,7 @@ async function loadTemplates(familyId: string, templateId?: string) {
           .filter(s => s.categoryId === c.id)
           .map(s => ({
             id: s.id, name: s.name, points: s.points,
-            quantity: s.quantity, choiceGroup: s.choiceGroup,
+            quantity: s.quantity, period: s.period || "daily", choiceGroup: s.choiceGroup,
           })),
       })),
   }))
@@ -166,7 +166,7 @@ export async function routineRoutes(app: FastifyInstance) {
     try { await req.jwtVerify() } catch { return reply.status(401).send({ error: "未登录" }) }
     if (req.user.role !== "parent") return reply.status(403).send({ error: "权限不足" })
     if (!(await categoryOwned(req.params.id, req.user.familyId))) return reply.status(404).send({ error: "大类不存在" })
-    const { name, points, quantity, choiceGroup } = routineSubtaskCreateSchema.parse(req.body)
+    const { name, points, quantity, period, choiceGroup } = routineSubtaskCreateSchema.parse(req.body)
 
     const maxRows = await query<{ maxOrder: number | null }>(
       `SELECT MAX(sortOrder) AS maxOrder FROM TemplateSubtask WHERE categoryId = ?`,
@@ -174,10 +174,10 @@ export async function routineRoutes(app: FastifyInstance) {
     )
     const id = genId()
     await execute(
-      `INSERT INTO TemplateSubtask (id, categoryId, name, points, quantity, choiceGroup, sortOrder) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [id, req.params.id, name, points, quantity, choiceGroup ?? null, (maxRows[0]?.maxOrder ?? -1) + 1]
+      `INSERT INTO TemplateSubtask (id, categoryId, name, points, quantity, period, choiceGroup, sortOrder) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, req.params.id, name, points, quantity, period, choiceGroup ?? null, (maxRows[0]?.maxOrder ?? -1) + 1]
     )
-    return reply.send({ id, name, points, quantity, choiceGroup: choiceGroup ?? null })
+    return reply.send({ id, name, points, quantity, period, choiceGroup: choiceGroup ?? null })
   })
 
   // PUT /api/routine/subtasks/:id — 修改子任务
@@ -185,19 +185,20 @@ export async function routineRoutes(app: FastifyInstance) {
     try { await req.jwtVerify() } catch { return reply.status(401).send({ error: "未登录" }) }
     if (req.user.role !== "parent") return reply.status(403).send({ error: "权限不足" })
     if (!(await subtaskOwned(req.params.id, req.user.familyId))) return reply.status(404).send({ error: "子任务不存在" })
-    const { name, points, quantity, choiceGroup } = routineSubtaskUpdateSchema.parse(req.body)
+    const { name, points, quantity, period, choiceGroup } = routineSubtaskUpdateSchema.parse(req.body)
 
-    const rows = await query<{ name: string; points: number; quantity: number; choiceGroup: string | null }>(
-      `SELECT name, points, quantity, choiceGroup FROM TemplateSubtask WHERE id = ? LIMIT 1`,
+    const rows = await query<{ name: string; points: number; quantity: number; period: string; choiceGroup: string | null }>(
+      `SELECT name, points, quantity, period, choiceGroup FROM TemplateSubtask WHERE id = ? LIMIT 1`,
       [req.params.id]
     )
     const current = rows[0]
     await execute(
-      `UPDATE TemplateSubtask SET name = ?, points = ?, quantity = ?, choiceGroup = ? WHERE id = ?`,
+      `UPDATE TemplateSubtask SET name = ?, points = ?, quantity = ?, period = ?, choiceGroup = ? WHERE id = ?`,
       [
         name ?? current.name,
         points ?? current.points,
         quantity ?? current.quantity,
+        period ?? current.period ?? "daily",
         choiceGroup === undefined ? current.choiceGroup : choiceGroup,
         req.params.id,
       ]
@@ -285,12 +286,22 @@ export async function routineRoutes(app: FastifyInstance) {
       return reply.send({ date, child, template: null, progress: { done: 0, total: 0 }, categories: [] })
     }
 
-    const completions = await query<{ subtaskId: string; progress: number }>(
-      `SELECT subtaskId, progress FROM SubtaskCompletion WHERE childId = ? AND completedDate = ?`,
-      [childId, date]
+    // 每个子任务按自己的周期取当前周期的完成进度：每日=今天、每周=本周一、每月=当月 1 号
+    const periodKeys = Array.from(new Set([
+      periodStartStr("daily", date),
+      periodStartStr("weekly", date),
+      periodStartStr("monthly", date),
+    ]))
+    const completions = await query<{ subtaskId: string; progress: number; completedDate: string }>(
+      `SELECT subtaskId, progress, DATE_FORMAT(completedDate, '%Y-%m-%d') AS completedDate
+         FROM SubtaskCompletion
+        WHERE childId = ? AND completedDate IN (${periodKeys.map(() => "?").join(",")})`,
+      [childId, ...periodKeys]
     )
-    const progressMap = new Map(completions.map(c => [c.subtaskId, Number(c.progress)]))
-    const isDone = (s: { id: string; quantity: number }) => (progressMap.get(s.id) || 0) >= s.quantity
+    const progressMap = new Map(completions.map(c => [`${c.subtaskId}|${c.completedDate}`, Number(c.progress)]))
+    const progressOf = (s: { id: string; period: string }) =>
+      progressMap.get(`${s.id}|${periodStartStr(s.period, date)}`) || 0
+    const isDone = (s: { id: string; quantity: number; period: string }) => progressOf(s) >= s.quantity
 
     let done = 0
     let total = 0
@@ -311,7 +322,7 @@ export async function routineRoutes(app: FastifyInstance) {
         id: cat.id,
         name: cat.name,
         subtasks: cat.subtasks.map(s => {
-          const progress = progressMap.get(s.id) || 0
+          const progress = progressOf(s)
           const completed = progress >= s.quantity
           const groupDone = s.choiceGroup
             ? cat.subtasks.some(o => o.choiceGroup === s.choiceGroup && isDone(o))
@@ -350,8 +361,8 @@ export async function routineRoutes(app: FastifyInstance) {
     const templateId = assignments[0]?.templateId
     if (!templateId) return reply.status(400).send({ error: "尚未分配任务模板" })
 
-    const subtasks = await query<{ id: string; name: string; points: number; quantity: number; choiceGroup: string | null }>(
-      `SELECT s.id, s.name, s.points, s.quantity, s.choiceGroup
+    const subtasks = await query<{ id: string; name: string; points: number; quantity: number; period: string; choiceGroup: string | null }>(
+      `SELECT s.id, s.name, s.points, s.quantity, s.period, s.choiceGroup
          FROM TemplateSubtask s
          JOIN TemplateCategory c ON c.id = s.categoryId
         WHERE s.id = ? AND c.templateId = ?
@@ -361,7 +372,9 @@ export async function routineRoutes(app: FastifyInstance) {
     const subtask = subtasks[0]
     if (!subtask) return reply.status(404).send({ error: "子任务不存在" })
 
-    const date = todayStr()
+    // 完成记录按子任务所属周期的起始日存储：每日=当天、每周=本周一、每月=当月 1 号
+    const today = todayStr()
+    const date = periodStartStr(subtask.period, today)
     const rows = await query<{ id: string; progress: number }>(
       `SELECT id, progress FROM SubtaskCompletion WHERE childId = ? AND subtaskId = ? AND completedDate = ? LIMIT 1`,
       [childId, subtask.id, date]
@@ -378,15 +391,24 @@ export async function routineRoutes(app: FastifyInstance) {
 
     const next = current + 1
     if (next >= subtask.quantity && subtask.choiceGroup) {
-      const conflicts = await query<{ id: string }>(
-        `SELECT sc.id
-           FROM SubtaskCompletion sc
-           JOIN TemplateSubtask s2 ON s2.id = sc.subtaskId
-          WHERE sc.childId = ? AND sc.completedDate = ? AND s2.choiceGroup = ? AND s2.id <> ? AND sc.progress >= s2.quantity
-          LIMIT 1`,
-        [childId, date, subtask.choiceGroup, subtask.id]
+      // 二选一的两个选项周期可能不同，各自按自己的周期起始日判断
+      const siblings = await query<{
+        id: string; quantity: number; period: string
+        progress: number | null; completedDate: string | null
+      }>(
+        `SELECT s2.id, s2.quantity, s2.period, sc.progress,
+                DATE_FORMAT(sc.completedDate, '%Y-%m-%d') AS completedDate
+           FROM TemplateSubtask s2
+           LEFT JOIN SubtaskCompletion sc ON sc.subtaskId = s2.id AND sc.childId = ?
+          WHERE s2.choiceGroup = ? AND s2.id <> ?`,
+        [childId, subtask.choiceGroup, subtask.id]
       )
-      if (conflicts[0]) return reply.status(400).send({ error: "该二选一任务已完成" })
+      const blocked = siblings.some(o => {
+        if (o.progress === null || !o.completedDate) return false
+        if (periodStartStr(o.period, o.completedDate) !== periodStartStr(o.period, today)) return false
+        return Number(o.progress) >= Number(o.quantity)
+      })
+      if (blocked) return reply.status(400).send({ error: "该二选一任务已完成" })
     }
 
     if (rows[0]) {
@@ -419,9 +441,14 @@ export async function routineRoutes(app: FastifyInstance) {
     )
     if (!children[0]) return reply.status(404).send({ error: "小朋友不存在" })
 
+    const rows = await query<{ period: string }>(
+      `SELECT period FROM TemplateSubtask WHERE id = ? LIMIT 1`,
+      [parsed.subtaskId]
+    )
+    const period = rows[0]?.period || "daily"
     await execute(
       `DELETE FROM SubtaskCompletion WHERE childId = ? AND subtaskId = ? AND completedDate = ?`,
-      [childId, parsed.subtaskId, todayStr()]
+      [childId, parsed.subtaskId, periodStartStr(period, todayStr())]
     )
     return reply.send({ success: true, progress: 0, completed: false })
   })

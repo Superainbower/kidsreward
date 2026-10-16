@@ -5,6 +5,8 @@ interface SeedSubtask {
   name: string
   points: number
   quantity?: number
+  /** 周期：每日 / 每周 / 每月，默认每日 */
+  period?: "daily" | "weekly" | "monthly"
   /** 同一大类内相同标记的子任务互为一组（二选一） */
   choice?: string
 }
@@ -89,8 +91,8 @@ export async function seedDefaultRoutine(familyId: string) {
         choiceGroup = groups.get(s.choice)!
       }
       await execute(
-        `INSERT INTO TemplateSubtask (id, categoryId, name, points, quantity, choiceGroup, sortOrder) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [genId(), categoryId, s.name, s.points, s.quantity ?? 1, choiceGroup, si]
+        `INSERT INTO TemplateSubtask (id, categoryId, name, points, quantity, period, choiceGroup, sortOrder) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [genId(), categoryId, s.name, s.points, s.quantity ?? 1, s.period ?? "daily", choiceGroup, si]
       )
     }
   }
