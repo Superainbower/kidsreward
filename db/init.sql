@@ -124,6 +124,8 @@ CREATE TABLE IF NOT EXISTS `Reward` (
     `icon`        VARCHAR(191) NOT NULL DEFAULT '🎁',
     `description` VARCHAR(191) NULL     DEFAULT NULL,
     `pointsCost`  INTEGER      NOT NULL,
+    `kind`        VARCHAR(191) NOT NULL DEFAULT 'normal',
+    `lotteryItems` TEXT        NULL     DEFAULT NULL,
     `imageUrl`    VARCHAR(191) NULL     DEFAULT NULL,
     `isActive`    TINYINT(1)   NOT NULL DEFAULT 1,
     `createdAt`   DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),

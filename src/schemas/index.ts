@@ -73,15 +73,49 @@ export const updateTemplateSchema = createTemplateSchema.extend({
 })
 
 // Rewards
+export const lotteryItemSchema = z.object({
+  label: z.string().min(1, "奖励内容不能为空"),
+  type: z.enum(["points", "reward"]),
+  points: z.number().int().positive().optional(),
+  probability: z.number().positive().max(1),
+  icon: z.string().optional(),
+})
+
 export const createRewardSchema = z.object({
   title: z.string().min(1),
   description: z.string().optional(),
   pointsCost: z.number().int().min(1),
   imageUrl: z.string().optional(),
   icon: z.string().optional(),
+  kind: z.enum(["normal", "lottery"]).default("normal"),
+  lotteryItems: z.array(lotteryItemSchema).optional(),
+}).superRefine((data, ctx) => {
+  if (data.kind !== "lottery") return
+  const items = data.lotteryItems ?? []
+  if (items.length === 0) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["lotteryItems"], message: "抽奖奖品至少需要配置一个奖项" })
+    return
+  }
+  items.forEach((item, i) => {
+    if (item.type === "points" && (!item.points || item.points <= 0)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["lotteryItems", i, "points"], message: "积分奖项需要填写大于 0 的积分" })
+    }
+  })
+  const total = items.reduce((sum, item) => sum + item.probability, 0)
+  if (Math.abs(total - 1) > 0.0001) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["lotteryItems"], message: "所有奖项概率之和需为 1" })
+  }
 })
-export const updateRewardSchema = createRewardSchema.extend({
+
+export const updateRewardSchema = z.object({
+  title: z.string().min(1).optional(),
+  description: z.string().optional(),
+  pointsCost: z.number().int().min(1).optional(),
+  imageUrl: z.string().optional(),
+  icon: z.string().optional(),
   isActive: z.boolean().optional(),
+  kind: z.enum(["normal", "lottery"]).optional(),
+  lotteryItems: z.array(lotteryItemSchema).optional(),
 })
 
 // Redemptions

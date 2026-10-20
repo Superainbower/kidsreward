@@ -71,47 +71,44 @@ export async function settleDueDays(familyId: string) {
     [familyId]
   )
 
-  // 按（小朋友 + 子任务 + 周期起始日）归组，避免同周期多条记录重复加分
-  const groups = new Map<string, {
-    childId: string; subtaskId: string; period: string; start: string; points: number
+  // 按（小朋友 + 周期类型 + 周期起始日）归组：同一批结算在记录里只显示一条积分流水
+  const batches = new Map<string, {
+    childId: string; period: string; start: string; end: string
+    bySubtask: Map<string, number>
   }>()
   for (const r of rows) {
     const start = periodStartStr(r.period, r.completedDate)
-    if (periodEndStr(r.period, start) >= today) continue // 周期还没结束
-    const key = `${r.childId}|${r.subtaskId}|${start}`
-    if (groups.has(key)) continue
-    groups.set(key, {
-      childId: r.childId,
-      subtaskId: r.subtaskId,
-      period: r.period,
-      start,
-      points: Number(r.points) || 0,
-    })
+    const end = periodEndStr(r.period, start)
+    if (end >= today) continue // 周期还没结束
+    const key = `${r.childId}|${r.period}|${start}`
+    let batch = batches.get(key)
+    if (!batch) {
+      batch = { childId: r.childId, period: r.period, start, end, bySubtask: new Map() }
+      batches.set(key, batch)
+    }
+    if (!batch.bySubtask.has(r.subtaskId)) {
+      batch.bySubtask.set(r.subtaskId, Number(r.points) || 0)
+    }
   }
 
-  for (const group of groups.values()) {
-    const exists = await query<{ id: string }>(
-      `SELECT id FROM RoutineSettlement WHERE childId = ? AND subtaskId = ? AND settledDate = ? LIMIT 1`,
-      [group.childId, group.subtaskId, group.start]
-    )
-    if (exists[0]) continue
-
-    const end = periodEndStr(group.period, group.start)
+  for (const batch of batches.values()) {
     const conn = await pool().getConnection()
     try {
       await conn.beginTransaction()
       const now = new Date()
-      await conn.execute(
-        `INSERT INTO RoutineSettlement (id, familyId, childId, subtaskId, settledDate, points, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [genId("stl"), familyId, group.childId, group.subtaskId, group.start, group.points, now]
-      )
-      if (group.points > 0) {
+      let total = 0
+      for (const [subtaskId, points] of batch.bySubtask) {
+        // 每个子任务仍保留结算记录（用于幂等），积分流水则按批次合并
+        const [result]: any = await conn.execute(
+          `INSERT IGNORE INTO RoutineSettlement (id, familyId, childId, subtaskId, settledDate, points, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [genId("stl"), familyId, batch.childId, subtaskId, batch.start, points, now]
+        )
+        if (result.affectedRows > 0) total += points
+      }
+      if (total > 0) {
         await conn.execute(
-          `INSERT INTO PointsTransaction (id, familyId, userId, amount, type, reason, referenceId, createdAt) VALUES (?, ?, ?, ?, 'routine_settle', ?, ?, ?)`,
-          [
-            genId("pts"), familyId, group.childId, group.points,
-            settlementReason(group.period, group.start, end), group.subtaskId, now,
-          ]
+          `INSERT INTO PointsTransaction (id, familyId, userId, amount, type, reason, referenceId, createdAt) VALUES (?, ?, ?, ?, 'routine_settle', ?, NULL, ?)`,
+          [genId("pts"), familyId, batch.childId, total, settlementReason(batch.period, batch.start, batch.end), now]
         )
       }
       await conn.commit()
